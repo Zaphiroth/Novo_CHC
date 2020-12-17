@@ -8,7 +8,7 @@
 
 ##---- Universe info ----
 ## PCHC info
-pchc.mapping <- read.xlsx("02_Inputs/Universe_PCHCCode_20201209.xlsx", sheet = "PCHC")
+pchc.mapping <- read.xlsx("02_Inputs/Universe_PCHCCode_20201217.xlsx", sheet = "PCHC")
 
 pchc.mapping1 <- pchc.mapping %>% 
   filter(!is.na(`单位名称`), !is.na(PCHC_Code)) %>% 
@@ -40,19 +40,42 @@ std.info <- read.xlsx('02_Inputs/Product standardization master data-A-S-1211.xl
            route = NFC1_NAME_CH, packid = PACK_ID)
 
 ## market definition
-market.def <- read_xlsx("02_Inputs/市场分子式明细_chk_20201127.xlsx") %>% 
-  distinct(atc3 = ATCIII.Code, molecule = Molecule.Composition.Name, market = TC) %>% 
-  left_join(std.info, by = c('atc3', 'molecule')) %>% 
-  filter(!is.na(packid))
+market.def <- std.info %>% 
+  filter(atc3 %in% c('A10C', 'A10D', 'A10S'))
 
 
 ##---- Raw data ----
 ## Servier
 raw.servier1 <- read_csv('02_Inputs/data/Servier_ahbjjssdzj_17181920Q1Q2Q3_fj1718_nozj20Q3_packid_moleinfo.csv', 
                         locale = locale(encoding = "GB18030")) %>% 
-  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10S'))
+  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10S')) %>% 
+  mutate(Year = as.character(Year), 
+         Month = as.character(Month), 
+         Prd_desc_ZB = as.character(Prd_desc_ZB))
 
-raw.servier <- raw.servier %>% 
+raw.servier2 <- read.xlsx('02_Inputs/data/Servier_福建省_2019_packid_moleinfo(predicted by Servier_fj_2018_packid_moleinfo_v3).xlsx') %>% 
+  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10S')) %>% 
+  mutate(Year = as.character(Year), 
+         Month = as.character(Month), 
+         Prd_desc_ZB = as.character(Prd_desc_ZB))
+
+raw.servier3 <- read.xlsx('02_Inputs/data/Servier_福建省_2020_packid_moleinfo(predicted by Servier_fj_2018_packid_moleinfo_v3).xlsx') %>% 
+  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10S')) %>% 
+  mutate(Year = as.character(Year), 
+         Month = as.character(Month), 
+         Prd_desc_ZB = as.character(Prd_desc_ZB))
+
+raw.servier4 <- read.xlsx('02_Inputs/data/Servier_浙江省_2020Q3_packid_moleinfo(predicted by Servier_zj_2020Q1Q2_packid_moleinfo_v3).xlsx') %>% 
+  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10S')) %>% 
+  mutate(Year = as.character(Year), 
+         Month = as.character(Month), 
+         Prd_desc_ZB = as.character(Prd_desc_ZB))
+
+raw.servier <- bind_rows(raw.servier1) %>% 
+  mutate(Year = as.character(Year), 
+         Month = as.character(Month), 
+         Prd_desc_ZB = as.character(Prd_desc_ZB)) %>% 
+  bind_rows(raw.servier2, raw.servier3, raw.servier4) %>% 
   distinct(year = as.character(Year), 
            quarter = Quarter, 
            date = as.character(Month), 
@@ -87,7 +110,20 @@ raw.yds3 <- read_csv('02_Inputs/data/yidaosu_sd_20Q3_packid_moleinfo.csv',
                      locale = locale(encoding = "GB18030")) %>% 
   filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10C', 'A10D'))
 
+raw.yds4 <- read.xlsx('02_Inputs/data/yidaosu_福建省_2019_packid_moleinfo(predicted by yidaosu_fj_2018_packid_moleinfo_v2).xlsx') %>% 
+  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10C', 'A10D'))
+
+raw.yds5 <- read.xlsx('02_Inputs/data/yidaosu_福建省_2020_packid_moleinfo(predicted by yidaosu_fj_2018_packid_moleinfo_v2).xlsx') %>% 
+  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10C', 'A10D'))
+
+raw.yds6 <- read.xlsx('02_Inputs/data/yidaosu_浙江省_2020Q3_packid_moleinfo(predicted by yidaosu_zj_2020Q1Q2_packid_moleinfo_v2).xlsx') %>% 
+  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10C', 'A10D'))
+
 raw.yds <- bind_rows(raw.yds1, raw.yds2, raw.yds3) %>% 
+  mutate(Year = as.character(Year), 
+         Month = as.character(Month), 
+         Prd_desc_ZB = as.character(Prd_desc_ZB)) %>% 
+  bind_rows(raw.yds4, raw.yds5, raw.yds6) %>% 
   distinct(year = as.character(Year), 
            quarter = Quarter, 
            date = as.character(Month), 
@@ -109,14 +145,11 @@ raw.yds <- bind_rows(raw.yds1, raw.yds2, raw.yds3) %>%
   filter(units > 0, sales > 0) %>% 
   select(year, date, quarter, province, city, district, pchc, packid, units, sales)
 
-
-
-
-
 ## Guangzhou
 raw.gz1 <- read_feather('02_Inputs/data/广州/Servier_guangzhou_17181920Q1Q2_packid_moleinfo.feather')
 
 raw.gz <- raw.gz1 %>% 
+  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10C', 'A10D', 'A10S')) %>% 
   distinct(year = as.character(Year), 
            quarter = Quarter, 
            date = as.character(Month), 
@@ -128,7 +161,7 @@ raw.gz <- raw.gz1 %>%
            units = if_else(is.na(Volume), Value / Price, Volume), 
            sales = Value) %>% 
   left_join(pchc.mapping3, by = c('province', 'city', 'hospital')) %>% 
-  filter(!is.na(pchc), stri_sub(packid, 1, 5) %in% stri_sub(market.def$packid, 1, 5)) %>% 
+  filter(!is.na(pchc)) %>% 
   mutate(packid = if_else(stri_sub(packid, 1, 5) == '47775', 
                           stri_paste('58906', stri_sub(packid, 6, 7)), 
                           packid), 
@@ -180,7 +213,7 @@ raw.sh <- bind_rows(raw.sh1, raw.sh2) %>%
   select(year, date, quarter, province, city, district, pchc, packid, units, sales)
 
 ## total
-raw.total <- bind_rows(raw.data, raw.gz, raw.sh) %>% 
+raw.total <- bind_rows(raw.servier, raw.yds, raw.gz, raw.sh) %>% 
   group_by(pchc) %>% 
   mutate(province = first(na.omit(province)), 
          city = first(na.omit(city)), 
@@ -191,4 +224,4 @@ raw.total <- bind_rows(raw.data, raw.gz, raw.sh) %>%
             sales = sum(sales, na.rm = TRUE)) %>% 
   ungroup()
 
-write_feather(raw.total, '03_Outputs/Servier_CHC2_Raw.feather')
+write.xlsx(raw.total, '03_Outputs/Novo_Insulin_CHC_Raw.xlsx')
