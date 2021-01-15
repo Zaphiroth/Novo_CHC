@@ -1,8 +1,8 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-# ProjectName:  Novo Insulin CHC
+# ProjectName:  Novo CHC
 # Purpose:      CMAX projection
 # programmer:   Zhe Liu
-# Date:         2020-12-16
+# Date:         2021-01-15
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 
