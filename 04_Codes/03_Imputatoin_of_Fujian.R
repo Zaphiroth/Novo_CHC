@@ -1,6 +1,6 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 # ProjectName:  Novo CHC
-# Purpose:      Imputation of Shanghai
+# Purpose:      Imputation of Fujian
 # programmer:   Zhe Liu
 # Date:         2021-01-18
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -8,12 +8,11 @@
 
 ##---- Model ----
 ## model set
-sh.model.data <- raw.total %>% 
-  filter(province %in% c('上海', '北京')) %>% 
-  mutate(flag = if_else(province == '上海', 1, 0))
+fj.model.data <- raw.total %>% 
+  mutate(flag = if_else(province == '福建', 1, 0))
 
-sh.model.set <- sh.model.data %>% 
-  filter(quarter %in% c('2017Q1', '2017Q2', '2017Q3', '2017Q4', '2018Q1')) %>% 
+fj.model.set <- fj.model.data %>% 
+  filter(year %in% c('2018', '2019', '2020'), quarter <= '2020Q3') %>% 
   distinct(date, province, city, district, pchc, packid, sales, flag) %>% 
   group_by(province, city, district, pchc, date, flag) %>% 
   summarise(sales = sum(sales, na.rm = TRUE)) %>% 
@@ -24,27 +23,27 @@ sh.model.set <- sh.model.data %>%
               values_fill = 0)
 
 ## model
-sh.train.set <- sh.model.set[sh.model.set$flag == 0, ]
-sh.test.set <- sh.model.set[sh.model.set$flag == 1, ]
+fj.train.set <- fj.model.set[fj.model.set$flag == 0, ]
+fj.test.set <- fj.model.set[fj.model.set$flag == 1, ]
 
-sh.knn.model <- kknn(flag ~ ., 
-                     train = sh.train.set[, -(1:4)], 
-                     test = sh.test.set[, -(1:4)], 
+fj.knn.model <- kknn(flag ~ ., 
+                     train = fj.train.set[, -(1:4)], 
+                     test = fj.test.set[, -(1:4)], 
                      k = 3, 
                      scale = TRUE)
 
 ## model weightage
-sh.model.indice <- as.data.frame(sh.knn.model$C) %>% 
+fj.model.indice <- as.data.frame(fj.knn.model$C) %>% 
   lapply(function(x) {
-    sh.train.set$pchc[x]
+    fj.train.set$pchc[x]
   }) %>% 
   as.data.frame(col.names = c('pchc_1', 'pchc_2', 'pchc_3')) %>% 
-  bind_cols(sh.test.set[, 1:4]) %>% 
+  bind_cols(fj.test.set[, 1:4]) %>% 
   pivot_longer(cols = starts_with('pchc_'), 
                names_to = 'knn_level', 
                values_to = 'knn_pchc')
 
-sh.model.weight <- as.data.frame(sh.knn.model$D) %>% 
+fj.model.weight <- as.data.frame(fj.knn.model$D) %>% 
   lapply(function(x) {
     1 / (x + 1)
   }) %>% 
@@ -52,7 +51,7 @@ sh.model.weight <- as.data.frame(sh.knn.model$D) %>%
   mutate(pchc_1 = pchc_1 / (pchc_1 + pchc_2 + pchc_3),
          pchc_2 = pchc_2 / (pchc_1 + pchc_2 + pchc_3),
          pchc_3 = pchc_3 / (pchc_1 + pchc_2 + pchc_3)) %>% 
-  bind_cols(sh.test.set[, 1:4]) %>% 
+  bind_cols(fj.test.set[, 1:4]) %>% 
   pivot_longer(cols = starts_with('pchc_'), 
                names_to = 'knn_level', 
                values_to = 'knn_weight')
@@ -60,14 +59,14 @@ sh.model.weight <- as.data.frame(sh.knn.model$D) %>%
 
 ##---- Growth ----
 ## model growth
-sh.model.growth <- sh.model.data %>% 
+fj.model.growth <- fj.model.data %>% 
   filter(flag == 0) %>% 
   distinct(year, date, quarter, province, city, district, pchc, packid, sales, flag) %>% 
   group_by(knn_pchc = pchc, packid, year, date, quarter) %>% 
   summarise(sales = sum(sales, na.rm = TRUE)) %>% 
   ungroup() %>% 
-  inner_join(sh.model.indice, by = 'knn_pchc') %>% 
-  left_join(sh.model.weight, 
+  inner_join(fj.model.indice, by = 'knn_pchc') %>% 
+  left_join(fj.model.weight, 
             by = c('province', 'city', 'district', 'pchc', 'knn_level')) %>% 
   group_by(pchc, packid, year, date, quarter) %>% 
   summarise(sales = sum(sales * knn_weight, na.rm = TRUE)) %>% 
@@ -91,30 +90,10 @@ sh.model.growth <- sh.model.data %>%
 
 
 ##---- Prediction ----
-## predict 2018
-sh.predict.sales.18 <- sh.model.data %>% 
-  filter(quarter %in% c('2017Q2', '2017Q3', '2017Q4'), flag == 1) %>% 
-  left_join(sh.model.growth, by = c('year', 'date', 'pchc', 'packid')) %>% 
-  mutate(growth = if_else(is.na(growth), 1, growth),
-         growth = if_else(growth > 3, 3, growth),
-         growth = if_else(growth > quantile(growth, 0.9),
-                          mean(growth[growth >= quantile(growth, 0.25) & 
-                                        growth <= quantile(growth, 0.75)]),
-                          growth)) %>% 
-  mutate(units_imp = units * growth,
-         sales_imp = sales * growth,
-         date = gsub('2017', '2018', date),
-         quarter = gsub('2017', '2018', quarter),
-         year = '2018',
-         flag = 1) %>% 
-  select(year, date, quarter, province, city, district, pchc, market, packid, 
-         units = units_imp, sales = sales_imp, flag)
-
 ## predict 2019
-sh.predict.sales.19 <- sh.model.data %>% 
-  filter(quarter %in% c('2018Q1'), flag == 1) %>% 
-  bind_rows(sh.predict.sales.18) %>% 
-  left_join(sh.model.growth, by = c('year', 'date', 'pchc', 'packid')) %>% 
+fj.predict.sales.19 <- fj.model.data %>% 
+  filter(year %in% c('2018'), flag == 1) %>% 
+  left_join(fj.model.growth, by = c('year', 'date', 'pchc', 'packid')) %>% 
   mutate(growth = if_else(is.na(growth), 1, growth),
          growth = if_else(growth > 3, 3, growth),
          growth = if_else(growth > quantile(growth, 0.9),
@@ -131,9 +110,9 @@ sh.predict.sales.19 <- sh.model.data %>%
          units = units_imp, sales = sales_imp, flag)
 
 ## predict 2020
-sh.predict.sales.20 <- sh.predict.sales.19 %>% 
+fj.predict.sales.20 <- fj.predict.sales.19 %>% 
   filter(quarter %in% c('2019Q1', '2019Q2', '2019Q3')) %>% 
-  left_join(sh.model.growth, by = c('year', 'date', 'pchc', 'packid')) %>% 
+  left_join(fj.model.growth, by = c('year', 'date', 'pchc', 'packid')) %>% 
   mutate(growth = if_else(is.na(growth), 1, growth),
          growth = if_else(growth > 3, 3, growth),
          growth = if_else(growth > quantile(growth, 0.9),
@@ -151,7 +130,10 @@ sh.predict.sales.20 <- sh.predict.sales.19 %>%
 
 
 ##---- Result ----
-imp.sh <- bind_rows(sh.predict.sales.18, sh.predict.sales.19, sh.predict.sales.20) %>% 
+imp.fj <- bind_rows(fj.predict.sales.19, fj.predict.sales.20) %>% 
+  filter(market %in% c('MNIAD(GLP1/DPP4/SGLT2)', 'OAD')) %>% 
+  anti_join(fj.model.data, by = c('year', 'date', 'quarter', 'province', 'city', 
+                                  'district', 'pchc', 'market', 'packid')) %>% 
   group_by(year, date, quarter, province, city, district, pchc, market, packid, flag) %>% 
   summarise(units = sum(units, na.rm = TRUE),
             sales = sum(sales, na.rm = TRUE)) %>% 

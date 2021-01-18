@@ -1,8 +1,8 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-# ProjectName:  Novo Insulin CHC
+# ProjectName:  Novo CHC
 # Purpose:      Readin
 # programmer:   Zhe Liu
-# Date:         2020-12-16
+# Date:         2021-01-15
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 
@@ -75,14 +75,7 @@ raw.servier4 <- read.xlsx('02_Inputs/data/Servier_浙江省_2020Q3_packid_molein
          Month = as.character(Month), 
          Prd_desc_ZB = as.character(Prd_desc_ZB))
 
-raw.servier5 <- read_csv('02_Inputs/data/tj_18Q3_20Q2_packid_moleinfo.csv', 
-                         locale = locale(encoding = "GB18030")) %>% 
-  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10N', 'A10S', 'A10P', 'A10H', 'A10J', 'A10K', 'A10L', 'A10M')) %>% 
-  mutate(Year = as.character(Year), 
-         Month = as.character(Month), 
-         Prd_desc_ZB = as.character(Prd_desc_ZB))
-
-raw.servier <- bind_rows(raw.servier1, raw.servier2, raw.servier3, raw.servier4, raw.servier5) %>% 
+raw.servier <- bind_rows(raw.servier1, raw.servier2, raw.servier3, raw.servier4) %>% 
   distinct(year = as.character(Year), 
            quarter = Quarter, 
            date = as.character(Month), 
@@ -150,14 +143,7 @@ raw.yds6 <- read.xlsx('02_Inputs/data/yidaosu_浙江省_2020Q3_packid_moleinfo(p
          Month = as.character(Month), 
          Prd_desc_ZB = as.character(Prd_desc_ZB))
 
-raw.yds7 <- read_csv('02_Inputs/data/tj_yidaosu_18Q3_20Q3_packid_moleinfo.csv', 
-                     locale = locale(encoding = "GB18030")) %>% 
-  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10C', 'A10D')) %>% 
-  mutate(Year = as.character(Year), 
-         Month = as.character(Month), 
-         Prd_desc_ZB = as.character(Prd_desc_ZB))
-
-raw.yds <- bind_rows(raw.yds1, raw.yds2, raw.yds3, raw.yds4, raw.yds5, raw.yds6, raw.yds7) %>% 
+raw.yds <- bind_rows(raw.yds1, raw.yds2, raw.yds3, raw.yds4, raw.yds5, raw.yds6) %>% 
   distinct(year = as.character(Year), 
            quarter = Quarter, 
            date = as.character(Month), 
@@ -276,3 +262,47 @@ raw.total <- bind_rows(raw.servier, raw.yds, raw.gz, raw.sh) %>%
   ungroup()
 
 write.xlsx(raw.total, '03_Outputs/Novo_CHC_Raw.xlsx')
+
+## Tianjin
+raw.tj1 <- read_csv('02_Inputs/data/tj_18Q3_20Q2_packid_moleinfo.csv', 
+                    locale = locale(encoding = "GB18030")) %>% 
+  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10N', 'A10S', 'A10P', 'A10H', 'A10J', 'A10K', 'A10L', 'A10M')) %>% 
+  mutate(Year = as.character(Year), 
+         Month = as.character(Month), 
+         Prd_desc_ZB = as.character(Prd_desc_ZB))
+
+raw.tj2 <- read_csv('02_Inputs/data/tj_yidaosu_18Q3_20Q3_packid_moleinfo.csv', 
+                    locale = locale(encoding = "GB18030")) %>% 
+  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10C', 'A10D')) %>% 
+  mutate(Year = as.character(Year), 
+         Month = as.character(Month), 
+         Prd_desc_ZB = as.character(Prd_desc_ZB))
+
+raw.tj <- bind_rows(raw.tj1, raw.tj2) %>% 
+  distinct(year = as.character(Year), 
+           quarter = Quarter, 
+           province = '天津', 
+           city = '天津', 
+           atc3 = stri_sub(ATC4_Code, 1, 4), 
+           packid = stri_pad_left(packcode, 7, 0), 
+           price = Price, 
+           units = if_else(is.na(Volume), Value / Price, Volume), 
+           sales = Value) %>% 
+  filter(quarter <= '2020Q3') %>% 
+  mutate(packid = if_else(stri_sub(packid, 1, 5) == '47775', 
+                          stri_paste('58906', stri_sub(packid, 6, 7)), 
+                          packid), 
+         packid = if_else(stri_sub(packid, 1, 5) == '06470', 
+                          stri_paste('64895', stri_sub(packid, 6, 7)), 
+                          packid), 
+         market = case_when(atc3 %in% c('A10N', 'A10S', 'A10P') ~ 'MNIAD(GLP1/DPP4/SGLT2)', 
+                            atc3 %in% c('A10H', 'A10J', 'A10K', 'A10L', 'A10M') ~ 'OAD', 
+                            atc3 %in% c('A10C', 'A10D') ~ 'INS', 
+                            TRUE ~ NA_character_)) %>% 
+  filter(units > 0, sales > 0, !is.na(market)) %>% 
+  group_by(year, quarter, province, city, market, packid) %>% 
+  summarise(units = sum(units, na.rm = TRUE), 
+            sales = sum(sales, na.rm = TRUE)) %>% 
+  ungroup()
+
+write.xlsx(raw.tj, '03_Outputs/Nova_CHC_Raw_TJ.xlsx')
