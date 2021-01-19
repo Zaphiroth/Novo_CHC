@@ -1,18 +1,18 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-# ProjectName:  Servier CHC 2
+# ProjectName:  CHC Functionalize
 # Purpose:      Nation Projection
 # programmer:   Zhe Liu
 # Date:         2020-12-11
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 
-ProjectNation <- function(proj.sample.total, 
-                          pchc.universe, 
+ProjectNation <- function(proj.sample, 
+                          hospital.universe, 
                           city.tier) {
   
   ##---- Nation info ----
   ## universe city
-  universe.city <- pchc.universe %>% 
+  universe.city <- hospital.universe %>% 
     left_join(city.tier, by = "city") %>% 
     mutate(tier = ifelse(is.na(tier), 1, tier)) %>% 
     filter(!is.na(est)) %>% 
@@ -21,10 +21,11 @@ ProjectNation <- function(proj.sample.total,
     ungroup()
   
   ## nation sample
-  nation.sample <- proj.sample.total %>% 
+  nation.sample <- proj.sample %>% 
+    filter(!(province %in% c('北京', '上海'))) %>% 
     left_join(city.tier, by = "city") %>% 
     mutate(tier = ifelse(is.na(tier), 1, tier)) %>% 
-    group_by(date, province, city, tier, district, packid) %>% 
+    group_by(date, province, city, tier, district, market, packid) %>% 
     summarise(sales = sum(sales, na.rm = TRUE), 
               units = sum(units, na.rm = TRUE)) %>% 
     ungroup() %>% 
@@ -55,7 +56,7 @@ ProjectNation <- function(proj.sample.total,
                    values_drop_na = FALSE) %>% 
       pivot_wider(names_from = index, values_from = value) %>% 
       select(date, province = province.x, city = city.x, tier, 
-             district = district.x, packid, sales, units, est.x, est.y, slope)
+             district = district.x, market, packid, sales, units, est.x, est.y, slope)
   }
   
   ## result
@@ -64,15 +65,14 @@ ProjectNation <- function(proj.sample.total,
                            quantile(slope, 0.9), 
                            slope), 
            sales_m = sales * slope, 
-           units_m = units * slope, 
-           flag_sample = 0) %>% 
-    group_by(date, province, city, district, packid, flag_sample) %>% 
+           units_m = units * slope) %>% 
+    filter(sales > 0, units > 0, 
+           !(city %in% unique(proj.sample$city))) %>% 
+    bind_rows(proj.sample) %>% 
+    group_by(date, province, city, district, market, packid) %>% 
     summarise(sales = sum(sales_m, na.rm = TRUE), 
               units = sum(units_m, na.rm = TRUE)) %>% 
-    ungroup() %>% 
-    filter(sales > 0, units > 0) %>% 
-    filter(!(city %in% unique(proj.sample.total$city))) %>% 
-    bind_rows(proj.sample.total)
+    ungroup()
   
   return(proj.nation)
 }

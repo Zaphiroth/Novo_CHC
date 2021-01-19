@@ -1,22 +1,36 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-# ProjectName:  Servier CHC 2
+# ProjectName:  Novo CHC
 # Purpose:      Main
 # programmer:   Zhe Liu
-# Date:         2020-12-10
+# Date:         2021-01-18
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+
+##---- Total sample ----
+imp.total <- raw.total %>% 
+  mutate(flag = 0) %>% 
+  bind_rows(imp.sh, imp.fj) %>% 
+  filter(year %in% c('2019', '2020'), quarter <= '2020Q3')
+
+write_feather(imp.total, '03_Outputs/Novo_CHC_Imp.feather')
 
 
 ##---- Universe info ----
 ## target city
-kTargetCity <- read.xlsx('02_Inputs/Novo_Insulin_Target_City.xlsx')
+kTargetCity <- c('北京', '上海', '广州', '杭州', '天津', '南京', '苏州', '宁波', 
+                 '无锡', '温州', '福州', '济南', '青岛', '嘉兴', '南通', '徐州', 
+                 '常州', '盐城', '潍坊', '镇江', '厦门')
 
 ## PCHC
 pchc.universe <- read.xlsx("02_Inputs/2020_PCHC_Universe更新维护.xlsx", 
                            sheet = "2020 CHC universe", cols = 1:19)
 
 pchc.universe.m <- pchc.universe %>% 
-  distinct(province = `省`, city = `地级市`, district = `区[县/县级市]`, 
-           pchc = `新版PCHC_Code`, est = `其中：西药药品收入（千元）`) %>% 
+  distinct(province = gsub('省|市', '', `省`), 
+           city = gsub('市', '', `地级市`), 
+           district = `区[县/县级市]`, 
+           pchc = `新版PCHC_Code`, 
+           est = `其中：西药药品收入（千元）`) %>% 
   filter(est > 0) %>% 
   group_by(pchc) %>% 
   summarise(province = first(na.omit(province)), 
@@ -44,114 +58,78 @@ city.tier <- read.xlsx("02_Inputs/pchc_city_tier.xlsx") %>%
   distinct(city, tier)
 
 
-##---- Run Project ----
+##---- Run Projection ----
 source('04_Codes/functions/ProjectSample.R', encoding = 'UTF-8')
-# source('04_Codes/functions/ProjectSmallSample.R', encoding = 'UTF-8')
 source('04_Codes/functions/ProjectNation.R', encoding = 'UTF-8')
 source('04_Codes/functions/UpdatePrice.R', encoding = 'UTF-8')
 
-proj.sample <- ProjectSample(raw.total = imp.total, 
-                             pchc.universe = hospital.universe)
+proj.sample <- ProjectSample(imp.total = imp.total, 
+                             hospital.universe = hospital.universe)
 
-proj.nation <- ProjectNation(proj.sample.total = proj.sample, 
-                             pchc.universe = hospital.universe, 
+proj.nation <- ProjectNation(proj.sample = proj.sample, 
+                             hospital.universe = hospital.universe, 
                              city.tier = city.tier)
 
-proj.cs <- proj.nation %>% 
-  mutate(channel = 'CHC') %>% 
-  bind_rows(bj.chs)
+proj.price <- UpdatePrice(proj.nation = proj.nation, 
+                          imp.total = imp.total)
 
-proj.price <- UpdatePrice(proj.nation = proj.cs, 
-                          raw.total = imp.total)
+proj.result <- proj.price %>% 
+  filter(province != '天津') %>% 
+  bind_rows(raw.tj) %>% 
+  filter(quarter >= '2019Q1', quarter <= '2020Q3')
 
-write_feather(proj.price, '03_Outputs/Servier_CHC2_Proj.feather')
+write_feather(proj.result, '03_Outputs/Novo_CHC_Proj.feather')
 
 
 ##---- Format info ----
-## zs flag
-# zs.flag <- read.xlsx("02_Inputs/13城市的招标flag_zs_flag.xlsx") %>% 
-#   filter(!is.na(`是否是13城市`)) %>% 
-#   distinct(province = `省`, city = `地级市`, pchc = PCHC_Code, zs_flag)
+## IQVIA info
+iqvia.info <- read_excel('02_Inputs/IQVIA County Dec 19.xlsx', 
+                         sheet = 2, range = cell_cols('A:W')) %>% 
+  mutate(PACK = stri_pad_left(PACK, 7, 0)) %>% 
+  separate(`PACK SHORT DESC`, c('padding', 'dosage'), sep = 'x', 
+           remove = FALSE, convert = TRUE) %>% 
+  distinct(PACK, `TC IV SHORT DESC`, `ATC IV DESC`, `CORPORATE SHORT DESC`, 
+           `CORPORATE DESC`, `MANUFACT. SHORT DESC`, `MANUFACT. DESC`, 
+           `PRODUCT SHORT DESC`, `PRODUCT DESC`, `PACK SHORT DESC`, `PACK DESC`, 
+           PACK, CR, Category, Category2, Product, MOLECULE, INSVIAL, INSPEN, 
+           INSBAS, dosage)
 
-## 4+7 flag
-# capital.47 <- read_xlsx("02_Inputs/4+7+省会名单.xlsx") %>% 
-#   filter(`类别` %in% "4+7城市") %>% 
-#   mutate(city = gsub("市", "", `城市`)) %>% 
-#   select(city, `是否是4+7城市` = `类别`)
+write.xlsx(iqvia.info, '05_Internal_Review/IQVIA_Info.xlsx')
 
-## bid name
-prod.bid <- read_xlsx("02_Inputs/Displayname Mapping.xlsx", sheet = 1) %>% 
-  mutate(Pack_ID = stri_pad_left(Pack_ID, 7, 0),
-         prodid = stri_sub(Pack_ID, 1, 5),
-         `Display Name3 CN` = if_else(`Display Name3 CN` %in% c("中标品规", "非中标品规"), 
-                                      "仿制", 
-                                      `Display Name3 CN`),
-         `Display Name3 CN` = gsub("-2|-1", "", `Display Name3 CN`),
-         `Display Name2 CN` = gsub("-2|-1", "", `Display Name2 CN`)) %>% 
-  distinct(name1 = `Display Name1 CN`,
-           name2 = `Display Name2 CN`,
-           name3 = `Display Name3 CN`,
-           prodid)
+## MU
+CalcMU <- function(kPackDesc, per) {
+  
+  # kPackDesc <- 'VIAL SC 1K 10ML   1'
+  
+  kPackDesc <- gsub('\\s+', ' ', stri_trim(kPackDesc))
+  split.matrix <- stri_split_fixed(kPackDesc, ' ', simplify = TRUE)
+  iu <- as.numeric(gsub('IU', '', split.matrix[which(grepl('IU', split.matrix))]))
+  ml <- as.numeric(gsub('ML', '', split.matrix[which(grepl('ML', split.matrix))]))
+  num <- as.numeric(split.matrix[length(split.matrix)])
+  
+  if (per == 1) {
+    mu <- iu * ml * num / 1000000
+    mu <- ifelse(length(mu) > 0, mu, NaN)
+  } else if (per == 0) {
+    mu <- iu * num / 1000000
+    mu <- ifelse(length(mu) > 0, mu, NaN)
+  } else {
+    mu <- NaN
+  }
+  
+  return(mu)
+}
 
-## corporation, ATC3
-# corp.atc3 <- read_xlsx("02_Inputs/产品性质_chpa 08.23(1).xlsx", sheet = 1)
-# 
-# atc3.cn <- distinct(corp.atc3, atc3 = ATC3_Code, `ATC3中文分类` = `类别`)
-# 
-# molecule.cn <- distinct(corp.atc3, molecule = Molecule_Desc, Molecule_CN = `分子`)
-
-## new profile
-# packid.profile.raw <- read_xlsx("02_Inputs/packid_prod_20181112.xlsx")
-# 
-# pack.profile <- packid.profile.raw %>% 
-#   mutate(packid = stri_pad_left(Pack_Id, 7, 0)) %>% 
-#   distinct(packid, ims_product_cn)
-# 
-# prod.profile <- pack.profile %>%
-#   mutate(prodid = substr(packid, 1, 5)) %>% 
-#   distinct(prodid, ims_product_cn1 = ims_product_cn)
-
-## city EN
-city.en <- read.xlsx("02_Inputs/CityEN.xlsx")
+mu.info <- chpa.info %>% 
+  filter(atc3 %in% c('A10C', 'A10D')) %>% 
+  mutate(pack = toupper(pack), 
+         per = if_else(grepl('/ML', pack), 1, 0), 
+         pack = gsub('/ML', '', pack), 
+         mu = mapply(CalcMU, pack, per)) %>% 
+  select(packid, mu)
 
 
-##---- Run format ----
-source('04_Codes/functions/FormatServier.R')
+##---- Run formation ----
 
-servier.city <- FormatServier(proj.price = proj.price, 
-                              market.def = market.def, 
-                              city.en = city.en, 
-                              prod.bid = prod.bid)
 
-servier.result <- servier.city %>% 
-  filter(Channel == 'CHC') %>% 
-  group_by(Pack_ID, Channel, Date, ATC3, ATC4, MKT, Molecule_Desc, Prod_Desc, 
-           Pck_Desc, Corp_Desc, TherapeuticClsII, TherapeuticClsIII, Prod_CN_Name, 
-           Package, Dosage, Quantity, `是否进入带量采购`, `是否是原研`, 
-           `是否是中标品种`, `是否是MNC`, `ATC3中文分类`, `给药途径`) %>% 
-  summarise(Province = 'National', 
-            City = 'National', 
-            Sales = sum(Sales, na.rm = TRUE), 
-            Units = sum(Units, na.rm = TRUE), 
-            DosageUnits = sum(DosageUnits, na.rm = TRUE), 
-            `CITY-EN` = 'National', 
-            Sales_raw = sum(Sales_raw, na.rm = TRUE), 
-            Units_raw = sum(Units_raw, na.rm = TRUE), 
-            DosageUnits_raw = sum(DosageUnits_raw, na.rm = TRUE)) %>% 
-  ungroup() %>% 
-  bind_rows(servier.city) %>% 
-  filter(City %in% c('National', kTargetCity)) %>% 
-  mutate(`Period-MAT` = case_when(
-    Date %in% c('2020Q3', '2020Q2', '2020Q1', '2019Q4') ~ 'MAT20Q3', 
-    Date %in% c('2019Q3', '2019Q2', '2019Q1', '2018Q4') ~ 'MAT19Q3', 
-    TRUE ~ NA_character_
-  )) %>% 
-  select(Pack_ID, Channel, Province, City, Date, ATC3, ATC4, MKT, Molecule_Desc, 
-         Prod_Desc, Pck_Desc, Corp_Desc, Sales, Units, DosageUnits, `Period-MAT`, 
-         `CITY-EN`, TherapeuticClsII, TherapeuticClsIII, Prod_CN_Name, Package, 
-         Dosage, Quantity, `是否进入带量采购`, `是否是原研`, `是否是中标品种`, 
-         `是否是MNC`, `ATC3中文分类`, Sales_raw, Units_raw, DosageUnits_raw, 
-         `给药途径`)
-
-write.xlsx(servier.result, '03_Outputs/Servier_CHC2_2018Q1_2020Q3.xlsx')
 

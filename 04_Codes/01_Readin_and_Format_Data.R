@@ -303,6 +303,7 @@ raw.tj <- bind_rows(raw.tj1, raw.tj2) %>%
   group_by(year, quarter, province, city, market, packid) %>% 
   summarise(units = sum(units, na.rm = TRUE), 
             sales = sum(sales, na.rm = TRUE)) %>% 
-  ungroup()
+  ungroup() %>% 
+  mutate(price = sales / units)
 
 write.xlsx(raw.tj, '03_Outputs/Nova_CHC_Raw_TJ.xlsx')
