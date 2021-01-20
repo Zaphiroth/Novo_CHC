@@ -16,11 +16,6 @@ write_feather(imp.total, '03_Outputs/Novo_CHC_Imp.feather')
 
 
 ##---- Universe info ----
-## target city
-kTargetCity <- c('北京', '上海', '广州', '杭州', '天津', '南京', '苏州', '宁波', 
-                 '无锡', '温州', '福州', '济南', '青岛', '嘉兴', '南通', '徐州', 
-                 '常州', '盐城', '潍坊', '镇江', '厦门')
-
 ## PCHC
 pchc.universe <- read.xlsx("02_Inputs/2020_PCHC_Universe更新维护.xlsx", 
                            sheet = "2020 CHC universe", cols = 1:19)
@@ -82,17 +77,25 @@ write_feather(proj.result, '03_Outputs/Novo_CHC_Proj.feather')
 
 
 ##---- Format info ----
+## target city
+kTargetCity <- c('北京', '上海', '广州', '杭州', '天津', '南京', '苏州', '宁波', 
+                 '无锡', '温州', '福州', '济南', '青岛', '嘉兴', '南通', '徐州', 
+                 '常州', '盐城', '潍坊', '镇江', '厦门')
+
+## city EN
+city.en <- read.xlsx('02_Inputs/CityEN.xlsx')
+
 ## IQVIA info
 iqvia.info <- read_excel('02_Inputs/IQVIA County Dec 19.xlsx', 
                          sheet = 2, range = cell_cols('A:W')) %>% 
   mutate(PACK = stri_pad_left(PACK, 7, 0)) %>% 
-  separate(`PACK SHORT DESC`, c('padding', 'dosage'), sep = 'x', 
-           remove = FALSE, convert = TRUE) %>% 
+  # separate(`PACK SHORT DESC`, c('padding', 'dosage'), sep = 'x', 
+  #          remove = FALSE, convert = TRUE) %>% 
   distinct(PACK, `TC IV SHORT DESC`, `ATC IV DESC`, `CORPORATE SHORT DESC`, 
            `CORPORATE DESC`, `MANUFACT. SHORT DESC`, `MANUFACT. DESC`, 
            `PRODUCT SHORT DESC`, `PRODUCT DESC`, `PACK SHORT DESC`, `PACK DESC`, 
            PACK, CR, Category, Category2, Product, MOLECULE, INSVIAL, INSPEN, 
-           INSBAS, dosage)
+           INSBAS)
 
 write.xlsx(iqvia.info, '05_Internal_Review/IQVIA_Info.xlsx')
 
@@ -128,8 +131,27 @@ mu.info <- chpa.info %>%
          mu = mapply(CalcMU, pack, per)) %>% 
   select(packid, mu)
 
+## quantity
+qty.info <- chpa.info %>% 
+  mutate(last_space_position = stri_locate_last(pack, regex = '\\s')[, 1], 
+         quantity = as.integer(str_squish(substr(pack, last_space_position, 
+                                                 nchar(pack))))) %>% 
+  select(packid, quantity)
+
 
 ##---- Run formation ----
+source('04_Codes/functions/FormatNovo.R', encoding = 'UTF-8')
+
+novo.city <- FormatNovo(proj.result = proj.result, 
+                        iqvia.info = iqvia.info, 
+                        qty.info = qty.info, 
+                        mu.info = mu.info, 
+                        target.city = kTargetCity, 
+                        city.en = city.en)
+
+write.xlsx(novo.city, '03_Outputs/Novo_CHC_Result_City.xlsx')
+
+
 
 
 

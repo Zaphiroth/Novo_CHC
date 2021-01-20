@@ -65,14 +65,15 @@ ProjectNation <- function(proj.sample,
                            quantile(slope, 0.9), 
                            slope), 
            sales_m = sales * slope, 
-           units_m = units * slope) %>% 
-    filter(sales > 0, units > 0, 
-           !(city %in% unique(proj.sample$city))) %>% 
-    bind_rows(proj.sample) %>% 
-    group_by(date, province, city, district, market, packid) %>% 
+           units_m = units * slope, 
+           flag_sample = 2) %>% 
+    group_by(date, province, city, district, market, packid, flag_sample) %>% 
     summarise(sales = sum(sales_m, na.rm = TRUE), 
               units = sum(units_m, na.rm = TRUE)) %>% 
-    ungroup()
+    ungroup() %>% 
+    filter(sales > 0, units > 0) %>% 
+    filter(!(city %in% unique(proj.sample$city))) %>% 
+    bind_rows(proj.sample)
   
   return(proj.nation)
 }
