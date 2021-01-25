@@ -85,14 +85,12 @@ ProjectSample <- function(imp.total,
                            est * units_est_ratio_m)) %>% 
     ## summary
     bind_rows(out.data) %>% 
-    filter(units > 0, sales > 0) %>% 
     group_by(date, province, city, district, market, packid, flag_sample) %>% 
     summarise(sales = sum(sales, na.rm = TRUE), 
               units = sum(units, na.rm = TRUE)) %>% 
-    ungroup()
+    ungroup() %>% 
+    filter(units > 0, sales > 0)
   
   
   return(proj.sample)
 }
-
-

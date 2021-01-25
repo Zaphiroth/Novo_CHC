@@ -29,7 +29,7 @@ FormatNovo <- function(proj.result,
               sales = sum(sales, na.rm = TRUE)) %>% 
     ungroup() %>% 
     bind_rows(novo.summary) %>% 
-    filter(city %in% c('Nation', kTargetCity)) %>% 
+    filter(city %in% c('Nation', target.city)) %>% 
     left_join(iqvia.info, by = c('packid' = 'PACK')) %>% 
     left_join(qty.info, by = 'packid') %>% 
     left_join(mu.info, by = 'packid') %>% 
@@ -65,13 +65,13 @@ FormatNovo <- function(proj.result,
   
   ##---- YTD ----
   novo.ytd <- novo.quarter %>% 
-    mutate(q = stri_sub(quarter, 5, 6)) %>% 
+    mutate(qtr = stri_sub(quarter, 5, 6)) %>% 
     group_by(City, PACK, Measure) %>% 
     arrange(quarter) %>% 
-    mutate(value = case_when(q == 'Q1' ~ value, 
-                             q == 'Q2' ~ value + lag(value, 1), 
-                             q == 'Q3' ~ value + lag(value, 1) + lag(value, 2), 
-                             q == 'Q4' ~ value + lag(value, 1) + lag(value, 2) + lag(value, 3), 
+    mutate(value = case_when(qtr == 'Q1' ~ value, 
+                             qtr == 'Q2' ~ value + lag(value, 1), 
+                             qtr == 'Q3' ~ value + lag(value, 1) + lag(value, 2), 
+                             qtr == 'Q4' ~ value + lag(value, 1) + lag(value, 2) + lag(value, 3), 
                              TRUE ~ NaN)) %>% 
     ungroup() %>% 
     select(-q) %>% 

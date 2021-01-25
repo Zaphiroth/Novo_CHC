@@ -77,4 +77,3 @@ ProjectNation <- function(proj.sample,
   
   return(proj.nation)
 }
-

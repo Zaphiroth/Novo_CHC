@@ -149,7 +149,7 @@ novo.city <- FormatNovo(proj.result = proj.result,
                         target.city = kTargetCity, 
                         city.en = city.en)
 
-write.xlsx(novo.city, '03_Outputs/Novo_CHC_Result_City.xlsx')
+write.xlsx(novo.city, '03_Outputs/Novo_CHC_Result.xlsx')
 
 
 

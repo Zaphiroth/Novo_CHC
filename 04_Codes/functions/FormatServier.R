@@ -131,5 +131,3 @@ FormatServier <- function(proj.price,
   
   return(servier.result)
 }
-
-
