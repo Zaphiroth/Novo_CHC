@@ -13,13 +13,13 @@ options(java.parameters = "-Xmx2048m",
 ##---- loading the required packages ----
 suppressPackageStartupMessages({
   require(zip)
-  require(openxlsx)
+  require(openxlsx)s
   require(readxl)
   require(writexl)
+  require(feather)
   require(RcppRoll)
   require(plyr)
   require(stringi)
-  require(feather)
   require(RODBC)
   require(MASS)
   require(car)

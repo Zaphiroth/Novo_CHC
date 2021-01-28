@@ -69,8 +69,8 @@ proj.price <- UpdatePrice(proj.nation = proj.nation,
                           imp.total = imp.total)
 
 proj.result <- proj.price %>% 
-  filter(province != '天津') %>% 
-  bind_rows(raw.tj) %>% 
+  # filter(province != '天津') %>% 
+  # bind_rows(raw.tj) %>% 
   filter(quarter >= '2019Q1', quarter <= '2020Q3')
 
 write_feather(proj.result, '03_Outputs/Novo_CHC_Proj.feather')

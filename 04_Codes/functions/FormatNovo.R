@@ -74,7 +74,7 @@ FormatNovo <- function(proj.result,
                              qtr == 'Q4' ~ value + lag(value, 1) + lag(value, 2) + lag(value, 3), 
                              TRUE ~ NaN)) %>% 
     ungroup() %>% 
-    select(-q) %>% 
+    select(-qtr) %>% 
     filter(!is.na(value)) %>% 
     mutate(quarter = stri_paste('YTD ', stri_sub(quarter, 3, 6)))
   
