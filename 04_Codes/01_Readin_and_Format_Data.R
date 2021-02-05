@@ -8,7 +8,7 @@
 
 ##---- Universe info ----
 ## PCHC info
-pchc.mapping <- read.xlsx("02_Inputs/Universe_PCHCCode_20210125.xlsx", sheet = "PCHC")
+pchc.mapping <- read.xlsx("02_Inputs/Universe_PCHCCode_20210202.xlsx", sheet = "PCHC")
 
 pchc.mapping1 <- pchc.mapping %>% 
   filter(!is.na(`单位名称`), !is.na(PCHC_Code)) %>% 
@@ -33,7 +33,8 @@ pchc.mapping4 <- pchc.mapping3 %>%
   ungroup()
 
 ## Tianjin hospital
-pchc.mapping.tj <- read.xlsx('02_Inputs/TJ_CHC_Mapping_Table.xlsx')
+name.mapping.tj <- read.xlsx('02_Inputs/医院分级代码.xlsx')
+
 
 ## CHPA
 chpa.info <- read.xlsx('02_Inputs/ims_chpa_to20Q3.xlsx', cols = 1:21, startRow = 4) %>%  
@@ -259,21 +260,10 @@ raw.sh <- bind_rows(raw.sh1, raw.sh2) %>%
   select(year, date, quarter, province, city, district, pchc, market, packid, units, sales)
 
 ## Tianjin
-raw.tj1 <- read_csv('02_Inputs/data/tj_18Q3_20Q2_packid_moleinfo.csv', 
-                    locale = locale(encoding = "GB18030")) %>% 
-  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10N', 'A10S', 'A10P', 'A10H', 'A10J', 'A10K', 'A10L', 'A10M')) %>% 
-  mutate(Year = as.character(Year), 
-         Month = as.character(Month), 
-         Prd_desc_ZB = as.character(Prd_desc_ZB))
+raw.tj1 <- read_csv('02_Inputs/data/tj_CHC_18Q3_20Q4_packid_moleinfo.csv', 
+                    locale = locale(encoding = 'GB18030'))
 
-raw.tj2 <- read_csv('02_Inputs/data/tj_yidaosu_18Q3_20Q3_packid_moleinfo.csv', 
-                    locale = locale(encoding = "GB18030")) %>% 
-  filter(stri_sub(ATC4_Code, 1, 4) %in% c('A10C', 'A10D')) %>% 
-  mutate(Year = as.character(Year), 
-         Month = as.character(Month), 
-         Prd_desc_ZB = as.character(Prd_desc_ZB))
-
-raw.tj <- bind_rows(raw.tj2) %>% 
+raw.tj <- raw.tj1 %>% 
   distinct(year = as.character(Year), 
            quarter = Quarter, 
            qtr = stri_sub(Quarter, 5, 6), 
@@ -318,5 +308,3 @@ raw.total <- bind_rows(raw.servier, raw.yds, raw.gz, raw.sh, raw.tj) %>%
   ungroup()
 
 write.xlsx(raw.total, '03_Outputs/Novo_CHC_Raw.xlsx')
-
-
