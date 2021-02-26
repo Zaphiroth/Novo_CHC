@@ -140,16 +140,11 @@ qty.info <- chpa.info %>%
 ##---- Run formation ----
 source('04_Codes/functions/FormatNovo.R', encoding = 'UTF-8')
 
-novo.city <- FormatNovo(proj.result = proj.result, 
-                        iqvia.info = iqvia.info, 
-                        qty.info = qty.info, 
-                        mu.info = mu.info, 
-                        target.city = kTargetCity, 
-                        city.en = city.en)
+novo.result <- FormatNovo(proj.result = proj.result, 
+                          iqvia.info = iqvia.info, 
+                          qty.info = qty.info, 
+                          mu.info = mu.info, 
+                          target.city = kTargetCity, 
+                          city.en = city.en)
 
-write.xlsx(novo.city, '03_Outputs/Novo_CHC_Result.xlsx')
-
-
-
-
-
+write.xlsx(novo.result, '03_Outputs/Novo_CHC_2019Q1_2020Q3.xlsx')
